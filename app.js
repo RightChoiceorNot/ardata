@@ -11,8 +11,8 @@ function _fetchJSON(url, callback) {
   return p;
 }
 
-// 三個 personal 檔案並行載入
-Promise.all([
+// 三個 personal 檔案 + 兩個 donor 檔案，全部完成才顯示畫面
+var _pPersonal = Promise.all([
   fetch('personal_unified.json').then(function(r){ return r.json(); }),
   fetch('personal_unified_2.json').then(function(r){ return r.json(); }),
   fetch('personal_unified_3.json').then(function(r){ return r.json(); })
@@ -23,8 +23,7 @@ Promise.all([
   _buildCandidatePersIdx(_PERSONAL_UNIFIED);
 }).catch(function(e){ console.warn('personal 資料載入失敗', e); });
 
-// 兩個 donor 檔案並行載入
-Promise.all([
+var _pDonor = Promise.all([
   fetch('donor_unified.json').then(function(r){ return r.json(); }),
   fetch('donor_unified_2.json').then(function(r){ return r.json(); })
 ]).then(function(results){
@@ -32,6 +31,17 @@ Promise.all([
   _buildPartyCorpIndex(_DONOR_UNIFIED);
   _buildCorpByName(_DONOR_UNIFIED);
 }).catch(function(e){ console.warn('donor 資料載入失敗', e); });
+
+// 全部完成後移除載入遮罩
+Promise.all([_pPersonal, _pDonor]).then(function(){
+  var overlay = document.getElementById('loading-overlay');
+  if (!overlay) return;
+  overlay.style.opacity = '0';
+  setTimeout(function(){ overlay.remove(); }, 420);
+}).catch(function(){
+  var overlay = document.getElementById('loading-overlay');
+  if (overlay) { overlay.style.opacity = '0'; setTimeout(function(){ overlay.remove(); }, 420); }
+});
 
 // 2018/2020 corp_data lazy fetch（切換時才載入）
 window._CORP_DATA_2018 = null;
@@ -56,8 +66,6 @@ function _loadCorpData2020(cb) {
   });
 }
 
-// 等所有資料載入完成
-Promise.all(_loadPromises).catch(function(e){ console.warn('部分資料載入失敗', e); });
 
 // ══ 政黨頁面（完全獨立） ══
 var activeParty     = null;
