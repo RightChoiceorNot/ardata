@@ -1099,15 +1099,17 @@ function udRenderList() {
   });
 
   var hasMore = (_ud_page+1)*_ud_pageSize < _ud_filtered.length;
-  if (hasMore) {
+  if (hasMore || _ud_page > 0) {
     html += '<div style="text-align:center;padding:12px 12px 80px;display:flex;justify-content:center;gap:8px">' +
-      '<button onclick="udLoadMore()" style="font-size:.78rem;padding:8px 24px;border-radius:8px;' +
+      (hasMore ? '<button onclick="udLoadMore()" style="font-size:.78rem;padding:8px 24px;border-radius:8px;' +
         'border:1.5px solid var(--border);background:var(--surface);color:var(--accent);' +
         'cursor:pointer;font-weight:600">' +
         '載入更多（'+Math.min((_ud_page+1)*_ud_pageSize,_ud_filtered.length)+' / '+_ud_filtered.length+'）' +
-      '</button>' +
+      '</button>' : '') +
       (_ud_page > 0 ? '<button onclick="udPrevPage()" style="font-size:.78rem;padding:8px 24px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;font-weight:600">上一頁</button>' : '') +
     '</div>';
+  } else {
+    html += '<div style="height:80px"></div>';
   }
 
   listEl.innerHTML = html;
@@ -1224,7 +1226,7 @@ function initUnifiedDonorPage() {
       '</div>' +
     '</div>' +
     // 右側列表
-    '<div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">' +
+    '<div style="flex:1;overflow-y:auto;padding:16px 20px 80px;background:var(--bg)">' +
       '<div id="ud-meta" style="font-size:.72rem;color:var(--muted);margin-bottom:12px"></div>' +
       '<div id="ud-list"></div>' +
     '</div>' +
@@ -1627,7 +1629,7 @@ initUnifiedDonorPage = function() {
         '</select>' +
       '</div>' +
     '</div>' +
-    '<div style="flex:1;overflow-y:auto;padding:16px 20px;background:var(--bg)">' +
+    '<div style="flex:1;overflow-y:auto;padding:16px 20px 80px;background:var(--bg)">' +
       '<div id="ud-meta" style="font-size:.72rem;color:var(--muted);margin-bottom:12px"></div>' +
       '<div id="ud-list"></div>' +
     '</div>' +
@@ -1866,15 +1868,17 @@ function pdRenderList() {
   });
 
   var hasMore = (_pd_page+1)*_pd_size < _pd_filtered.length;
-  if (hasMore) {
+  if (hasMore || _pd_page > 0) {
     html += '<div style="text-align:center;padding:12px 12px 80px;display:flex;justify-content:center;gap:8px">' +
-      '<button onclick="pdLoadMore()" style="font-size:.78rem;padding:8px 24px;border-radius:8px;' +
+      (hasMore ? '<button onclick="pdLoadMore()" style="font-size:.78rem;padding:8px 24px;border-radius:8px;' +
         'border:1.5px solid var(--border);background:var(--surface);color:var(--accent);' +
         'cursor:pointer;font-weight:600">' +
         '載入更多（'+Math.min((_pd_page+1)*_pd_size,_pd_filtered.length)+' / '+_pd_filtered.length+'）' +
-      '</button>' +
+      '</button>' : '') +
       (_pd_page > 0 ? '<button onclick="pdPrevPage()" style="font-size:.78rem;padding:8px 24px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;font-weight:600">上一頁</button>' : '') +
     '</div>';
+  } else {
+    html += '<div style="height:80px"></div>';
   }
 
   listEl.innerHTML = html;
