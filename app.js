@@ -75,6 +75,13 @@ var activePartyTab  = 'corp';
 var activePartyMainTab = 'rank';  // rank | donor
 var partyDonorQ     = '';
 
+// ── 公司名稱字形正規化（異體字對應表，需要時逐一補充） ──
+function _normName(s) {
+  if (!s) return '';
+  // 覧 (U+89A7) → 覽 (U+89BD)
+  return s.replace(/覧/g, '覽');
+}
+
 // ── 全域捐款索引 ──
 var _CORP_IDX = null;
 var _ORG_IDX  = null;
@@ -432,20 +439,13 @@ function pFmtDate(d) {
 var _ALSO_YR_LABELS = {'2018':'2018地方選舉','2020':'2020總統立委','2022':'2022地方選舉','2024':'2024總統立委','party':'政黨'};
 var _ALSO_YR_ORDER  = ['2024','2022','2020','2018','party'];
 
-// ── 單筆捐款行（含跨黨/跨候選人比對標籤） ──
-function renderDonorRow(item, curParty, curYr) {
-  if (activePartyTab === 'rank') {
-    renderPartyRank();
-    return;
-  }
-
-  // candByYr: {yr → {candName → {city, party, amt}}}
-  // partyMap: {partyName → {yrs[], yr_labels[], totalAmt}}
+// ── 組建「也捐給」區塊 HTML（供 renderDonorRow 與 renderDonorSection 共用） ──
+function _buildAlsoGaveHtml(item, curParty, curYr) {
   var candByYr = {};
   var partyMap = {};
 
   if (activePartyTab === 'corp' || activePartyTab === 'org') {
-    var donorEntry = _CORP_BY_NAME && _CORP_BY_NAME[(item.name || '').trim()];
+    var donorEntry = _CORP_BY_NAME && _CORP_BY_NAME[_normName((item.name || '').trim())];
     if (donorEntry && donorEntry.sources) {
       ['2018','2020','2022','2024'].forEach(function(yr) {
         if (!donorEntry.sources[yr]) return;
@@ -489,7 +489,6 @@ function renderDonorRow(item, curParty, curYr) {
     });
   }
 
-  // 按年份分組渲染（與候選人頁格式相同）
   var rows = _ALSO_YR_ORDER.filter(function(yr) {
     return yr === 'party'
       ? Object.keys(partyMap).length > 0
@@ -497,7 +496,6 @@ function renderDonorRow(item, curParty, curYr) {
   }).map(function(yr) {
     var yrLabel = '<span style="font-size:.62rem;color:var(--muted);white-space:nowrap;margin-right:2px">' +
       _ALSO_YR_LABELS[yr] + '：</span>';
-
     var tags = '';
     if (yr === 'party') {
       tags = Object.keys(partyMap).map(function(pname) {
@@ -532,12 +530,22 @@ function renderDonorRow(item, curParty, curYr) {
       yrLabel + tags + '</div>';
   });
 
-  var otherHtml = rows.length
+  return rows.length
     ? '<div style="margin-top:5px;padding-left:2px">' +
         '<span style="font-size:.67rem;color:var(--muted)">也捐給：</span>' +
         rows.join('') +
       '</div>'
     : '';
+}
+
+// ── 單筆捐款行（含跨黨/跨候選人比對標籤） ──
+function renderDonorRow(item, curParty, curYr, skipAlso) {
+  if (activePartyTab === 'rank') {
+    renderPartyRank();
+    return;
+  }
+
+  var otherHtml = skipAlso ? '' : _buildAlsoGaveHtml(item, curParty, curYr);
 
   return '<div class="donor-row" style="' + (otherHtml ? 'flex-direction:column;align-items:flex-start;' : '') + '">' +
     '<div style="display:flex;align-items:center;width:100%;gap:10px">' +
@@ -586,10 +594,10 @@ function renderDonorSection() {
   var titleEl = document.getElementById('party-donor-title');
   if (titleEl) titleEl.innerHTML = totalLabel;
 
-  // 合併同名捐款者
+  // 合併同名捐款者（以正規化名稱為 key，避免異體字導致不合併）
   var mergedMap = {};
   items.forEach(function(item) {
-    var k = item.name || '';
+    var k = _normName((item.name || '').trim());
     if (!mergedMap[k]) mergedMap[k] = Object.assign({}, item, { total: 0, multiItems: [] });
     mergedMap[k].total += item.amt;
     mergedMap[k].multiItems.push(item);
@@ -618,9 +626,9 @@ function renderDonorSection() {
 
   el.innerHTML = filtered.length
     ? filtered.map(function(item) {
-        var rowHtml = renderDonorRow(item, activeParty, activePartyYr);
-        // 多筆展開
+        // 多筆展開：順序為 header → 逐筆明細 → 也捐給
         if (item.multiItems && item.multiItems.length > 1) {
+          var baseRow = renderDonorRow(item, activeParty, activePartyYr, true);
           var multiHtml = '<div style="margin:2px 0 6px 0;padding-left:8px;border-left:2px solid var(--border)">' +
             item.multiItems.map(function(it) {
               var retT = it.ret&&it.ret.includes('返還') ? '<span style="font-size:.6rem;background:#fef2f2;color:#ef4444;padding:1px 4px;border-radius:6px;margin-left:4px">已返還</span>' : '';
@@ -629,10 +637,10 @@ function renderDonorSection() {
                 '<span style="margin-left:auto;font-family:var(--mono);font-weight:600">' + pFmtAmtFull(it.amt) + '</span>' +
                 retT + '</div>';
             }).join('') + '</div>';
-          // 在 row 結尾插入 multiHtml
-          rowHtml = '<div>' + rowHtml + multiHtml + '</div>';
+          var alsoHtml = _buildAlsoGaveHtml(item, activeParty, activePartyYr);
+          return '<div>' + baseRow + multiHtml + alsoHtml + '</div>';
         }
-        return rowHtml;
+        return renderDonorRow(item, activeParty, activePartyYr);
       }).join('')
     : '<div style="color:var(--muted);font-size:.82rem;padding:10px 0">' +
         (partyDonorQ ? '查無符合「' + partyDonorQ + '」的紀錄' : emptyMsg) +
@@ -2509,7 +2517,7 @@ function _buildCandidatePersIdx(unified) {
 function _buildCorpByName(donor) {
   _CORP_BY_NAME = {};
   donor.forEach(function(obj) {
-    if (obj.name) _CORP_BY_NAME[obj.name.trim()] = obj;
+    if (obj.name) _CORP_BY_NAME[_normName(obj.name.trim())] = obj;
   });
   console.log('[index] 企業名稱索引建立完成, 筆數:', Object.keys(_CORP_BY_NAME).length);
   if (activeParty && typeof renderDonorSection === 'function') renderDonorSection();
