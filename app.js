@@ -27,7 +27,7 @@ var _pDonor = Promise.all([
   fetch('donor_unified.json').then(function(r){ return r.json(); }),
   fetch('donor_unified_2.json').then(function(r){ return r.json(); })
 ]).then(function(results){
-  _DONOR_UNIFIED = results[0].concat(results[1]);
+  _DONOR_UNIFIED = _dedupeByNormName(results[0].concat(results[1]));
   _buildPartyCorpIndex(_DONOR_UNIFIED);
   _buildCorpByName(_DONOR_UNIFIED);
 }).catch(function(e){ console.warn('donor 資料載入失敗', e); });
@@ -80,6 +80,50 @@ function _normName(s) {
   if (!s) return '';
   // 覧 (U+89A7) → 覽 (U+89BD)
   return s.replace(/覧/g, '覽');
+}
+
+// ── 合併名稱正規化後重複的 _DONOR_UNIFIED 項目 ──
+function _dedupeByNormName(arr) {
+  var map = {};
+  var order = [];
+  arr.forEach(function(obj) {
+    var key = _normName((obj.name || '').trim());
+    if (!map[key]) {
+      map[key] = Object.assign({}, obj, {
+        sources: JSON.parse(JSON.stringify(obj.sources || {}))
+      });
+      order.push(key);
+    } else {
+      var base = map[key];
+      base.total = (base.total || 0) + (obj.total || 0);
+      base.nc    = (base.nc    || 0) + (obj.nc    || 0);
+      if (obj.is_corp)    base.is_corp    = true;
+      if (obj.is_org)     base.is_org     = true;
+      if (obj.has_inkind) base.has_inkind = true;
+      // sources 合併
+      Object.keys(obj.sources || {}).forEach(function(sk) {
+        var s = obj.sources[sk]; if (!s) return;
+        if (!base.sources[sk]) {
+          base.sources[sk] = { items: (s.items||[]).slice(), total: s.total||0 };
+        } else {
+          base.sources[sk].items = (base.sources[sk].items||[]).concat(s.items||[]);
+          base.sources[sk].total = (base.sources[sk].total||0) + (s.total||0);
+        }
+      });
+      // pd_* 政黨分布合併
+      ['pd_all','pd_2022','pd_2024','pd_2018','pd_2020','pd_party'].forEach(function(pk) {
+        if (!obj[pk] || !obj[pk].length) return;
+        if (!base[pk] || !base[pk].length) { base[pk] = obj[pk].slice(); return; }
+        var pdMap = {};
+        base[pk].forEach(function(x){ pdMap[x.p] = (pdMap[x.p]||0) + x.a; });
+        obj[pk].forEach(function(x){  pdMap[x.p] = (pdMap[x.p]||0) + x.a; });
+        base[pk] = Object.keys(pdMap)
+          .map(function(p){ return {p:p, a:pdMap[p]}; })
+          .sort(function(a,b){ return b.a - a.a; });
+      });
+    }
+  });
+  return order.map(function(k){ return map[k]; });
 }
 
 // ── 全域捐款索引 ──
